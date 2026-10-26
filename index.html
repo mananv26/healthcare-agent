@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Healthcare Agent Demo</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #5f6b7a; --line: #e3e7ec;
+    --accent: #0b7a6b; --accent-ink: #ffffff; --me: #dff3ee; --bot: #ffffff; --warn: #b42318; --warn-bg: #fdecea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1216; --panel: #171b21; --ink: #e8ecf1; --muted: #9aa6b4; --line: #2a313a;
+            --accent: #3cc2ad; --accent-ink: #06201c; --me: #163a34; --bot: #1d232b; --warn: #ff8a80; --warn-bg: #3a1714; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { margin: 0; font-size: 17px; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; padding: 16px; max-width: 1200px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px; border-bottom: 1px solid var(--line); }
+  select, input, button { font: inherit; color: inherit; }
+  select, input[type=text] { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+  button { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  #log { height: 58vh; min-height: 320px; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 82%; padding: 9px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--line); }
+  .me { align-self: flex-end; background: var(--me); }
+  .bot { align-self: flex-start; background: var(--bot); }
+  .sys { align-self: center; color: var(--muted); font-size: 12px; border: none; }
+  .alert { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+  form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
+  form input { flex: 1; }
+  .tabs { display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .tabs button[aria-selected=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  #panel { padding: 12px; max-height: 58vh; overflow-y: auto; font-size: 13px; }
+  .item { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .item b { display: block; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); margin-right: 4px; }
+  .tag.urgent, .tag.high { color: var(--warn); border-color: var(--warn); }
+  .hint { color: var(--muted); font-size: 12px; padding: 0 12px 12px; }
+  pre { white-space: pre-wrap; margin: 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Healthcare Agent: live demo</h1>
+  <p>Seeded demo data only. Do not enter real patient information.</p>
+</header>
+<main>
+  <section class="card">
+    <div class="controls">
+      <select id="patient" aria-label="Demo patient">
+        <option value="+919845011111">Ravi Kumar (Hindi) · DOB 1979-04-12</option>
+        <option value="+919845022222">Priya Nair · DOB 1991-11-03</option>
+        <option value="+919845033333">Arjun Mehta, guardian · DOB 2018-06-20</option>
+        <option value="+919845044444">Lakshmi (Tamil) · DOB 1958-02-17</option>
+        <option value="+919800000000">New number (not registered)</option>
+      </select>
+      <select id="channel" aria-label="Channel">
+        <option>whatsapp</option><option>sms</option><option>web</option><option>kiosk</option>
+      </select>
+      <button id="newchat" type="button">New conversation</button>
+    </div>
+    <div id="log" aria-live="polite"></div>
+    <form id="form">
+      <input id="msg" type="text" autocomplete="off" placeholder="Type a message… e.g. mujhe ortho doctor se milna hai" aria-label="Message">
+      <button id="mic" type="button" title="Hold to talk (needs Sarvam)">🎙</button>
+      <button class="primary" id="send">Send</button>
+    </form>
+    <p class="hint">Try: book a review · "kya mera cashless approve ho gaya?" · share my prescription · "STOP" · a red-flag symptom in any language.</p>
+  </section>
+
+  <aside class="card">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="tasks" aria-selected="true">Staff queues</button>
+      <button role="tab" data-tab="outbox">Outbox</button>
+      <button role="tab" data-tab="metrics">Metrics</button>
+    </div>
+    <div class="controls">
+      <span id="clock" class="tag">clock</span>
+      <button type="button" data-tick="120">+2h</button>
+      <button type="button" data-tick="1440">+1 day</button>
+      <button type="button" id="reset">Reset demo</button>
+    </div>
+    <div id="panel"></div>
+  </aside>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+let sessionId = crypto.randomUUID();
+let tab = "tasks";
+let accessCode = store.get("accessCode") || "";
+
+async function api(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  if (accessCode) headers["X-Access-Code"] = accessCode;
+  const r = await fetch(path, { ...opts, headers });
+  if (r.status === 401) {
+    accessCode = prompt("Enter the demo access code") || "";
+    store.set("accessCode", accessCode);
+    if (accessCode) return api(path, opts);
+  }
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return r.json();
+}
+
+function add(text, cls) {
+  const d = document.createElement("div");
+  d.className = "msg " + cls;
+  d.textContent = text;
+  $("#log").append(d);
+  $("#log").scrollTop = $("#log").scrollHeight;
+  return d;
+}
+
+$("#form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const message = $("#msg").value.trim();
+  if (!message) return;
+  $("#msg").value = "";
+  add(message, "me");
+  const wait = add("…", "bot");
+  $("#send").disabled = true;
+  try {
+    const r = await api("/api/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId, phone: $("#patient").value, channel: $("#channel").value, message }),
+    });
+    wait.textContent = r.reply;
+    if (r.escalated) wait.classList.add("alert");
+  } catch (err) {
+    wait.textContent = "Error: " + err.message;
+    wait.classList.add("alert");
+  } finally {
+    $("#send").disabled = false;
+    refresh();
+  }
+});
+
+function newChat(note) {
+  sessionId = crypto.randomUUID();
+  $("#log").innerHTML = "";
+  add(note || "New conversation", "sys");
+}
+$("#newchat").onclick = () => newChat();
+$("#patient").onchange = () => newChat("Now chatting from " + $("#patient").selectedOptions[0].text);
+
+// Voice: hold the mic button, release to send. Sarvam transcribes, the agent replies, Sarvam speaks.
+let rec, chunks = [];
+async function startRec() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    rec = new MediaRecorder(stream);
+    chunks = [];
+    rec.ondataavailable = (e) => chunks.push(e.data);
+    rec.onstop = sendVoice;
+    rec.start();
+    $("#mic").textContent = "● Rec";
+  } catch { add("Microphone not available", "sys"); }
+}
+function stopRec() {
+  if (rec && rec.state === "recording") { rec.stop(); rec.stream.getTracks().forEach((t) => t.stop()); }
+  $("#mic").textContent = "🎙";
+}
+async function sendVoice() {
+  const fd = new FormData();
+  fd.append("session_id", sessionId);
+  fd.append("phone", $("#patient").value);
+  fd.append("audio", new Blob(chunks, { type: "audio/webm" }), "voice.webm");
+  const wait = add("(listening…)", "me");
+  try {
+    const r = await api("/api/voice", { method: "POST", body: fd });
+    wait.textContent = "🎙 " + (r.transcript || "(no speech detected)");
+    const b = add(r.reply, "bot");
+    if (r.audio_b64) new Audio("data:audio/wav;base64," + r.audio_b64).play();
+  } catch (err) { wait.textContent = "Voice error: " + err.message; wait.classList.add("alert"); }
+  refresh();
+}
+$("#mic").addEventListener("pointerdown", startRec);
+$("#mic").addEventListener("pointerup", stopRec);
+$("#mic").addEventListener("pointerleave", stopRec);
+
+document.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => {
+  tab = b.dataset.tab;
+  document.querySelectorAll("[data-tab]").forEach((x) => x.setAttribute("aria-selected", x === b));
+  refresh();
+});
+document.querySelectorAll("[data-tick]").forEach((b) => b.onclick = async () => {
+  const r = await api("/api/tick", { method: "POST", headers: { "Content-Type": "application/json" },
+                                     body: JSON.stringify({ minutes: +b.dataset.tick }) });
+  add(`Clock advanced. ${r.sent.length} proactive message(s) sent.`, "sys");
+  tab = "outbox";
+  document.querySelectorAll("[data-tab]").forEach((x) => x.setAttribute("aria-selected", x.dataset.tab === tab));
+  refresh();
+});
+$("#reset").onclick = async () => { await api("/api/reset", { method: "POST" }); newChat("Demo data reset"); refresh(); };
+
+function el(tag, text, cls) { const e = document.createElement(tag); e.textContent = text; if (cls) e.className = cls; return e; }
+
+async function refresh() {
+  let s;
+  try { s = await api("/api/state"); } catch { return; }
+  $("#clock").textContent = s.now.replace("T", " ");
+  const p = $("#panel");
+  p.innerHTML = "";
+  if (tab === "metrics") { p.append(el("pre", JSON.stringify(s.metrics, null, 2))); return; }
+  const rows = (tab === "tasks" ? s.tasks : s.outbox).slice().reverse();
+  if (!rows.length) p.append(el("div", "Nothing yet.", "item"));
+  for (const r of rows) {
+    const d = el("div", "", "item");
+    if (tab === "tasks") {
+      d.append(el("span", r.queue, "tag"), el("span", r.priority, "tag " + r.priority), el("b", r.summary));
+    } else {
+      d.append(el("span", r.purpose, "tag"), el("span", r.template || "", "tag"), el("b", r.to), el("span", r.text));
+    }
+    p.append(d);
+  }
+}
+
+newChat("Pick a demo patient and say hello. The agent will ask for date of birth to verify.");
+refresh();
+</script>
+</body>
+</html>

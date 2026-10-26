@@ -119,7 +119,7 @@ flowchart LR
 ## Quick start
 
 ```bash
-git clone https://github.com/<owner>/healthcare-agent.git
+git clone https://github.com/mananv26/healthcare-agent.git
 cd healthcare-agent
 pip install -r requirements.txt
 
@@ -147,6 +147,24 @@ Inside the chat: `/tick 60` advances the clock and runs campaigns; `/tasks`, `/o
 | Arjun Mehta (minor) | +919845033333 | 2018-06-20 | paediatric visit 2 days ago; follow-up due; guardian Neha |
 | Lakshmi Subramanian | +919845044444 | 1958-02-17 | Tamil, voice-first; lapsed diabetic with marketing opt-in |
 
+## Deploy (public demo URL)
+
+The repo includes a web server (`server.py`, FastAPI) with a chat page, voice button, staff-queue,
+outbox and metrics panels, plus a [Render](https://render.com) blueprint (`render.yaml`).
+
+1. Sign in at [render.com](https://render.com) with GitHub.
+2. Choose **New → Blueprint** and pick this repository.
+3. Fill in the secrets Render asks for: `ANTHROPIC_API_KEY`, `SARVAM_API_KEY` and `DEMO_ACCESS_CODE` (a
+   passphrase you share with testers, so strangers can't spend your API credits).
+4. Click **Apply**. A few minutes later the demo is live at `https://healthcare-agent-XXXX.onrender.com`.
+
+Every push to `main` redeploys automatically. Run it locally with `uvicorn server:app --reload` and open
+http://localhost:8000.
+
+> The deployment uses **seeded demo data in memory**. It resets on every restart, and on the free plan the
+> service sleeps when idle, so the first request takes about 30s. Never enter real patient data: handling
+> real data needs a database, encryption, access control and DPDP-compliant hosting in India.
+
 ## Configuration
 
 | Setting | Default | Notes |
@@ -170,7 +188,10 @@ agent/
   store.py          in-memory HIS / EMR / billing / TPA / consent ledger (replace with adapters)
   metrics.py        brief's KPIs computed from the event log
   prompts.py        system prompt
-cli.py              interactive demo
+cli.py              interactive terminal demo
+server.py           web server for the hosted demo (FastAPI)
+static/index.html   demo chat page
+render.yaml         Render deployment blueprint
 docs/
   conversation_model.md   full conversation design: states, intents, flows, sample dialogues
 tests/              offline tests with scripted Claude and Sarvam fakes
